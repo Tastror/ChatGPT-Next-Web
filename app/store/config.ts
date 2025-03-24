@@ -75,7 +75,7 @@ export const DEFAULT_CONFIG = {
     historyMessageCount: 4,
     compressMessageLengthThreshold: 1000,
     compressModel: "gpt-4o-mini",
-    compressProviderName: "",
+    compressProviderName: "OpenAI",
     enableInjectSystemPrompts: true,
     template: config?.template ?? DEFAULT_INPUT_TEMPLATE,
     size: "1024x1024" as ModelSize,
