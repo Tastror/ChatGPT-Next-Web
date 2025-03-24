@@ -232,6 +232,11 @@ export function isModelNotavailableInServer(
   modelName: string,
   providerNames: string | string[],
 ): boolean {
+
+  if (providerNames === "tastror") {
+    return false;
+  }
+
   // Check DISABLE_GPT4 environment variable
   if (
     process.env.DISABLE_GPT4 === "1" &&
