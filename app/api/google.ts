@@ -131,11 +131,6 @@ async function request(req: NextRequest, apiKey: string) {
   (async () => {
     try {
       const res = await fetch(fetchUrl, fetchOptions);
-      // to prevent browser prompt for credentials
-      const newHeaders = new Headers(res.headers);
-      newHeaders.delete("www-authenticate");
-      // to disable nginx buffering
-      newHeaders.set("X-Accel-Buffering", "no");
   
       // 当收到第一个数据块时，清除心跳定时器
       let isFirstChunk = true;
@@ -169,6 +164,7 @@ async function request(req: NextRequest, apiKey: string) {
   responseStream = transformStream.readable;
 
   return new Response(responseStream, {
+    status: 200,
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
