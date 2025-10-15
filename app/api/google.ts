@@ -131,13 +131,25 @@ async function request(req: NextRequest, apiKey: string) {
   (async () => {
     try {
       const res = await fetch(fetchUrl, fetchOptions);
+      // @ts-ignore
+      const reader = res.body.getReader(); 
+      const decoder = new TextDecoder();
+
+      let done = false;
       let isFirstChunk = true;
-      if (isFirstChunk) {
-        clearInterval(intervalId);
-        isFirstChunk = false;
-        console.log("[Google] First chunk received, clearing keep-alive interval.");
+
+      while (!done) {
+        const { value, done: isDone } = await reader.read();
+        done = isDone;
+        if (value) {
+          writer.write(encoder.encode(decoder.decode(value, { stream: true })));
+        }
+        if (isFirstChunk) {
+          clearInterval(intervalId);
+          isFirstChunk = false;
+          console.log("[Google] First chunk received, clearing keep-alive interval.");
+        }
       }
-      writer.write(encoder.encode(res.body as any));
     } finally {
       clearTimeout(timeoutId);
       // 确保在任何情况下都清除定时器并关闭流
