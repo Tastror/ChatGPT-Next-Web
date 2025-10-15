@@ -114,20 +114,82 @@ async function request(req: NextRequest, apiKey: string) {
     signal: controller.signal,
   };
 
-  try {
-    const res = await fetch(fetchUrl, fetchOptions);
-    // to prevent browser prompt for credentials
-    const newHeaders = new Headers(res.headers);
-    newHeaders.delete("www-authenticate");
-    // to disable nginx buffering
-    newHeaders.set("X-Accel-Buffering", "no");
+  // 添加一个两秒的心跳，防止流式一直不出结果
+  let intervalId: any;
+  let responseStream: ReadableStream;
+  const transformStream = new TransformStream();
+  const writer = transformStream.writable.getWriter();
+  const encoder = new TextEncoder();
 
-    return new Response(res.body, {
-      status: res.status,
-      statusText: res.statusText,
-      headers: newHeaders,
-    });
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  // 启动一个心跳定时器，每 2 秒发送一个 SSE 注释，以保持连接活跃
+  intervalId = setInterval(() => {
+    writer.write(encoder.encode("Waiting...\n"));
+    console.log("[Google] Sent keep-alive");
+  }, 2000);
+
+  // 异步执行 AI 调用
+  (async () => {
+    try {
+      const res = await fetch(fetchUrl, fetchOptions);
+      // to prevent browser prompt for credentials
+      const newHeaders = new Headers(res.headers);
+      newHeaders.delete("www-authenticate");
+      // to disable nginx buffering
+      newHeaders.set("X-Accel-Buffering", "no");
+  
+      // 当收到第一个数据块时，清除心跳定时器
+      let isFirstChunk = true;
+      for await (const chunk of res.body as any) {
+        if (isFirstChunk) {
+          clearInterval(intervalId);
+          isFirstChunk = false;
+          console.log("[Google] First chunk received, clearing keep-alive interval.");
+        }
+        const text = chunk.choices[0]?.delta?.content || "";
+        if (text) {
+          // 将 AI 的真实数据写入流
+          // 注意：这里我们直接写入原始 SSE 格式的 chunk
+          // 如果你使用 'ai' 包的 OpenAIStream，逻辑会略有不同
+          // 这里为了演示，我们假设直接代理 SSE 文本
+          writer.write(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`));
+        }
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      // 确保在任何情况下都清除定时器并关闭流
+      if (intervalId) {
+        clearInterval(intervalId);
+        console.log("[Google] Stream ended, clearing interval.");
+      }
+      writer.close();
+    }
+  })();
+
+  // 使用 transformStream.readable 作为响应体
+  responseStream = transformStream.readable;
+
+  return new Response(responseStream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
+
+  // try {
+  //   const res = await fetch(fetchUrl, fetchOptions);
+  //   // to prevent browser prompt for credentials
+  //   const newHeaders = new Headers(res.headers);
+  //   newHeaders.delete("www-authenticate");
+  //   // to disable nginx buffering
+  //   newHeaders.set("X-Accel-Buffering", "no");
+
+  //   return new Response(res.body, {
+  //     status: res.status,
+  //     statusText: res.statusText,
+  //     headers: newHeaders,
+  //   });
+  // } finally {
+  //   clearTimeout(timeoutId);
+  // }
 }
