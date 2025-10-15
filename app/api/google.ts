@@ -178,7 +178,10 @@ async function request(req: NextRequest, apiKey: string) {
       writer.close();
       console.log("[Alive] Stream writer closed.");
     }
-  })();
+
+  })().catch(e => {
+      console.error("[Alive] Other error:", e);
+  });
 
   // 立即输出一个“假流”，这样保证有返回值
   responseStream = transformStream.readable;
