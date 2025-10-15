@@ -114,23 +114,33 @@ async function request(req: NextRequest, apiKey: string) {
     signal: controller.signal,
   };
 
-  // 添加一个两秒的心跳，防止流式一直不出结果
+
+  // --- 添加一个两秒的心跳，防止流式一直不出结果 ---
+
   let intervalId: any;
   let responseStream: ReadableStream;
   const transformStream = new TransformStream();
   const writer = transformStream.writable.getWriter();
   const encoder = new TextEncoder();
 
-  // 启动一个心跳定时器，每 2 秒发送一个 SSE 注释，以保持连接活跃
+  // 启动一个心跳定时器，每 2 秒发送一个无用 SSE 块，以保持及时响应
   intervalId = setInterval(() => {
-    writer.write(encoder.encode('data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Waiting..."}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]},"usageMetadata":{"promptTokenCount":2,"candidatesTokenCount":0,"totalTokenCount":2,"thoughtsTokenCount":0,"promptTokensDetails":null}}\n'));
-    console.log("[Google] Sent keep-alive");
+    writer.write(encoder.encode(': Waiting...\n\n'));
+    console.log("[Alive] Sent keep-alive");
   }, 2000);
 
-  // 异步执行 AI 调用
+  // 异步运行“真流”
   (async () => {
     try {
       const res = await fetch(fetchUrl, fetchOptions);
+  
+      if (!res.ok) {
+        const errorBody = await res.text();
+        const errorEvent = `data: ${JSON.stringify({ error: true, message: `Upstream Error: ${res.status} ${res.statusText}`, body: errorBody })}\n\n`;
+        writer.write(encoder.encode(errorEvent));
+        throw new Error(`[Alive] Upstream fetch failed with status ${res.status}`);
+      }
+
       // @ts-ignore
       const reader = res.body.getReader(); 
       const decoder = new TextDecoder();
@@ -138,6 +148,7 @@ async function request(req: NextRequest, apiKey: string) {
       let done = false;
       let isFirstChunk = true;
 
+      // 将“真流”的输入写入我们一开始立即返回的“假流”里
       while (!done) {
         const { value, done: isDone } = await reader.read();
         done = isDone;
@@ -146,24 +157,31 @@ async function request(req: NextRequest, apiKey: string) {
         }
         if (isFirstChunk) {
           clearInterval(intervalId);
+          intervalId = null;
           isFirstChunk = false;
-          console.log("[Google] First chunk received, clearing keep-alive interval.");
+          console.log("[Alive] First chunk received, clearing keep-alive interval.");
         }
       }
+
+    } catch (e) {
+      console.error("[Alive] Stream fetch error:", e);
+      const errorMessage = `data: ${JSON.stringify({ error: true, message: (e as Error).message })}\n\n`;
+      writer.write(encoder.encode(errorMessage));
+
     } finally {
       clearTimeout(timeoutId);
-      // 确保在任何情况下都清除定时器并关闭流
       if (intervalId) {
         clearInterval(intervalId);
-        console.log("[Google] Stream ended, clearing interval.");
+        intervalId = null;
+        console.log("[Alive] Stream ended, clearing interval.");
       }
       writer.close();
+      console.log("[Alive] Stream writer closed.");
     }
   })();
 
-  // 使用 transformStream.readable 作为响应体
+  // 立即输出一个“假流”，这样保证有返回值
   responseStream = transformStream.readable;
-
   return new Response(responseStream, {
     status: 200,
     headers: {
