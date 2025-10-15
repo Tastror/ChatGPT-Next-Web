@@ -123,7 +123,7 @@ async function request(req: NextRequest, apiKey: string) {
 
   // 启动一个心跳定时器，每 2 秒发送一个 SSE 注释，以保持连接活跃
   intervalId = setInterval(() => {
-    writer.write(encoder.encode("Waiting...\n"));
+    writer.write(encoder.encode('data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Waiting..."}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]},"usageMetadata":{"promptTokenCount":2,"candidatesTokenCount":0,"totalTokenCount":2,"thoughtsTokenCount":0,"promptTokensDetails":null}}\n'));
     console.log("[Google] Sent keep-alive");
   }, 2000);
 
@@ -131,24 +131,13 @@ async function request(req: NextRequest, apiKey: string) {
   (async () => {
     try {
       const res = await fetch(fetchUrl, fetchOptions);
-  
-      // 当收到第一个数据块时，清除心跳定时器
       let isFirstChunk = true;
-      for await (const chunk of res.body as any) {
-        if (isFirstChunk) {
-          clearInterval(intervalId);
-          isFirstChunk = false;
-          console.log("[Google] First chunk received, clearing keep-alive interval.");
-        }
-        const text = chunk.choices[0]?.delta?.content || "";
-        if (text) {
-          // 将 AI 的真实数据写入流
-          // 注意：这里我们直接写入原始 SSE 格式的 chunk
-          // 如果你使用 'ai' 包的 OpenAIStream，逻辑会略有不同
-          // 这里为了演示，我们假设直接代理 SSE 文本
-          writer.write(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`));
-        }
+      if (isFirstChunk) {
+        clearInterval(intervalId);
+        isFirstChunk = false;
+        console.log("[Google] First chunk received, clearing keep-alive interval.");
       }
+      writer.write(encoder.encode(res.body as any));
     } finally {
       clearTimeout(timeoutId);
       // 确保在任何情况下都清除定时器并关闭流
