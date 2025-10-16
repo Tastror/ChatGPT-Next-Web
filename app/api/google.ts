@@ -121,6 +121,7 @@ async function request(req: NextRequest, apiKey: string) {
   let intervalRealWrite: any;
   let intervalRealWrite_wrote = false;
   let responseStream: ReadableStream;
+  let writeLength = 0;
   const transformStream = new TransformStream();
   const writer = transformStream.writable.getWriter();
   const encoder = new TextEncoder();
@@ -135,8 +136,10 @@ async function request(req: NextRequest, apiKey: string) {
     if (!intervalRealWrite_wrote) {
       writer.write(encoder.encode('data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Waiting..."}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n'));
       intervalRealWrite_wrote = true;
+      writeLength += 10;
     } else {
       writer.write(encoder.encode('data: {"candidates":[{"content":{"role":"model","parts":[{"text":"."}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n'));
+      writeLength += 1;
     }
     console.log("[Alive] Sent intervalRealWrite");
   }, 4000);
@@ -175,6 +178,8 @@ async function request(req: NextRequest, apiKey: string) {
           intervalRealWrite_wrote = false;
           isFirstChunk = false;
           console.log("[Alive] First chunk received, clearing keep-alive interval.");
+          let deleteString = "\b".repeat(writeLength);
+          writer.write(encoder.encode(`data: {"candidates":[{"content":{"role":"model","parts":[{"text":"${deleteString}"}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n`));
         }
       }
 
