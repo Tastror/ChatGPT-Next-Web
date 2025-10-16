@@ -131,10 +131,31 @@ async function request(req: NextRequest, apiKey: string) {
   const writer = transformStream.writable.getWriter();
   const encoder = new TextEncoder();
 
+  const get_comment = (input_string: any) => {
+    return `: ${input_string}\n\n`;
+  }
+
+  const get_fake_stream = (input_string: any) => {
+    const output_json = {
+      "candidates": [{
+        "content": {
+          "role": "model",
+          "parts": [{ "text": input_string }]
+        },
+        "finishReason": "ERROR",
+        "index": 0,
+        "safetyRatings": []
+      }],
+      "promptFeedback": { "safetyRatings": [] }
+    };
+    const output_string = JSON.stringify(output_json);
+    return "data: " + output_string + "\n\n";
+  }
+
   // 启动一个心跳定时器，每 2 秒发送一个无用 SSE 块，以保持及时响应
   if (!USE_INTERVAL_REAL_WRITE) {
     intervalId = setInterval(() => {
-      writer.write(encoder.encode(': Waiting...\n\n'));
+      writer.write(encoder.encode(get_comment('Waiting...')));
       console.log("[Alive] SILENCE keep-alive Sent");
     }, HEARTBEAT_INTERVAL);
   }
@@ -147,7 +168,7 @@ async function request(req: NextRequest, apiKey: string) {
         writeString = "> Waiting.";
         intervalRealWrite_wrote = true;
       }
-      writer.write(encoder.encode(`data: {"candidates":[{"content":{"role":"model","parts":[{"text":"${writeString}"}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n`));
+      writer.write(encoder.encode(get_fake_stream(writeString)));
       console.log("[Alive] REAL-WRITE keep-alive Sent");
     }, HEARTBEAT_INTERVAL);
   }
@@ -159,32 +180,17 @@ async function request(req: NextRequest, apiKey: string) {
   
       if (!res.ok) {
         const errorBody = await res.text();
-        let parsedBody;
-        try {
-          parsedBody = JSON.parse(errorBody);
-        } catch (e) {
-          parsedBody = errorBody;
-        }
         const errorEventForDisplay = {
           error: true,
           message: `Upstream Error: ${res.status} ${res.statusText}`,
-          body: parsedBody
+          body: errorBody
         };
         const errorMessage = JSON.stringify(errorEventForDisplay, null, 2);
-        const output_json = {
-          "candidates": [{
-            "content": {
-              "role": "model",
-              "parts": [{ "text": `\n\n\`\`\`json\n${errorMessage}\n\`\`\`\n` }]
-            },
-            "finishReason": "ERROR",
-            "index": 0,
-            "safetyRatings": []
-          }],
-          "promptFeedback": { "safetyRatings": [] }
-        };
-        const output_string = JSON.stringify(output_json);
-        writer.write(encoder.encode("data: " + output_string + "\n\n"));
+        const inputString =
+          `\n\n\`\`\`json\n${errorMessage}\n\`\`\`\n`
+          + `**Response Body:**\n`
+          + `\`\`\`html\n${errorBody}\n\`\`\``;  // assume it is html
+        writer.write(encoder.encode(get_fake_stream(inputString)));
         return;
       }
 
@@ -216,7 +222,7 @@ async function request(req: NextRequest, apiKey: string) {
             if (!intervalRealWrite_wrote) {
               writeString = `> ${writeString}`;
             }
-            writer.write(encoder.encode(`data: {"candidates":[{"content":{"role":"model","parts":[{"text":"${writeString}"}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n`));
+            writer.write(encoder.encode(get_fake_stream(writeString)));
           }
 
           console.log("[Alive] First chunk received, clearing keep-alive interval.");
@@ -232,20 +238,8 @@ async function request(req: NextRequest, apiKey: string) {
     } catch (e) {
       console.error("[Alive] Stream fetch error:", e);
       const errorMessage = JSON.stringify({ error: true, message: (e as Error).message }, null, 2);
-      const output_json = {
-        "candidates": [{
-          "content": {
-            "role": "model",
-            "parts": [{ "text": `\n\n\`\`\`json\n${errorMessage}\n\`\`\`\n` }]
-          },
-          "finishReason": null,
-          "index": 0,
-          "safetyRatings": []
-        }],
-        "promptFeedback": { "safetyRatings": [] }
-      };
-      const output_string = JSON.stringify(output_json);
-      writer.write(encoder.encode("data: " + output_string + "\n\n"));
+      const inputString = `\n\n\`\`\`json\n${errorMessage}\n\`\`\`\n`;
+      writer.write(encoder.encode(get_fake_stream(inputString)));
 
     } finally {
 
