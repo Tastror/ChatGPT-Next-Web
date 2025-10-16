@@ -134,7 +134,7 @@ async function request(req: NextRequest, apiKey: string) {
 
   intervalRealWrite = setInterval(() => {
     if (!intervalRealWrite_wrote) {
-      writer.write(encoder.encode('data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Waiting..."}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n'));
+      writer.write(encoder.encode('data: {"candidates":[{"content":{"role":"model","parts":[{"text":"> Waiting."}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n'));
       intervalRealWrite_wrote = true;
       writeLength += 10;
     } else {
@@ -165,11 +165,6 @@ async function request(req: NextRequest, apiKey: string) {
 
       // 将“真流”的输入写入我们一开始立即返回的“假流”里
       while (!done) {
-        const { value, done: isDone } = await reader.read();
-        done = isDone;
-        if (value) {
-          writer.write(encoder.encode(decoder.decode(value, { stream: true })));
-        }
         if (isFirstChunk) {
           clearInterval(intervalId);
           clearInterval(intervalRealWrite);
@@ -179,7 +174,12 @@ async function request(req: NextRequest, apiKey: string) {
           isFirstChunk = false;
           console.log("[Alive] First chunk received, clearing keep-alive interval.");
           let deleteString = "\b".repeat(writeLength);
-          writer.write(encoder.encode(`data: {"candidates":[{"content":{"role":"model","parts":[{"text":"${deleteString}"}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n`));
+          writer.write(encoder.encode(`data: {"candidates":[{"content":{"role":"model","parts":[{"text":"${deleteString}\n"}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n`));
+        }
+        const { value, done: isDone } = await reader.read();
+        done = isDone;
+        if (value) {
+          writer.write(encoder.encode(decoder.decode(value, { stream: true })));
         }
       }
 
