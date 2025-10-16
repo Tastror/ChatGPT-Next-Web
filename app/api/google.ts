@@ -159,8 +159,7 @@ async function request(req: NextRequest, apiKey: string) {
   
       if (!res.ok) {
         const errorBody = await res.text();
-        const errorEventRaw = `data: ${JSON.stringify({ error: true, message: `Upstream Error: ${res.status} ${res.statusText}`, body: errorBody })}\n\n`;
-        const errorEvent = errorEventRaw.replaceAll("`", "\\`").replaceAll("$", "\\$").replaceAll("\n", "\\n");
+        const errorEvent = JSON.stringify({ error: true, message: `Upstream Error: ${res.status} ${res.statusText}`, body: errorBody }, null, 2);
         writer.write(encoder.encode(`data: {"candidates":[{"content":{"role":"model","parts":[{"text":"\\n\\n\`\`\`json\\n${errorEvent}\\n\`\`\`"}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n`));
         throw new Error(`[Alive] Upstream fetch failed with status ${res.status}`);
       }
