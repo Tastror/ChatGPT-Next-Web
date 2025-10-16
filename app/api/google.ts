@@ -159,9 +159,32 @@ async function request(req: NextRequest, apiKey: string) {
   
       if (!res.ok) {
         const errorBody = await res.text();
-        const errorEvent_raw = JSON.stringify({ error: true, message: `Upstream Error: ${res.status} ${res.statusText}`, body: errorBody }, null, 2);
-        const errorEvent = JSON.stringify(errorEvent_raw);  // escape all data in it
-        writer.write(encoder.encode(`data: {"candidates":[{"content":{"role":"model","parts":[{"text":"\\n\\n\`\`\`json\\n${errorEvent}\\n\`\`\`"}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n`));
+        let parsedBody;
+        try {
+          parsedBody = JSON.parse(errorBody);
+        } catch (e) {
+          parsedBody = errorBody;
+        }
+        const errorEventForDisplay = {
+          error: true,
+          message: `Upstream Error: ${res.status} ${res.statusText}`,
+          body: parsedBody
+        };
+        const errorMessage = JSON.stringify(errorEventForDisplay, null, 2);
+        const output_json = {
+          "candidates": [{
+            "content": {
+              "role": "model",
+              "parts": [{ "text": `\n\n\`\`\`json\n${errorMessage}\n\`\`\`\n` }]
+            },
+            "finishReason": "ERROR",
+            "index": 0,
+            "safetyRatings": []
+          }],
+          "promptFeedback": { "safetyRatings": [] }
+        };
+        const output_string = JSON.stringify(output_json);
+        writer.write(encoder.encode("data: " + output_string + "\n\n"));
         return;
       }
 
@@ -208,9 +231,21 @@ async function request(req: NextRequest, apiKey: string) {
 
     } catch (e) {
       console.error("[Alive] Stream fetch error:", e);
-      const errorMessage_raw = JSON.stringify({ error: true, message: (e as Error).message }, null, 2);
-      const errorMessage = JSON.stringify(errorMessage_raw);  // escape all data in it
-      writer.write(encoder.encode(`data: {"candidates":[{"content":{"role":"model","parts":[{"text":"\\n\\n\`\`\`json\\n${errorMessage}\\n\`\`\`"}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n`));
+      const errorMessage = JSON.stringify({ error: true, message: (e as Error).message }, null, 2);
+      const output_json = {
+        "candidates": [{
+          "content": {
+            "role": "model",
+            "parts": [{ "text": `\n\n\`\`\`json\n${errorMessage}\n\`\`\`\n` }]
+          },
+          "finishReason": null,
+          "index": 0,
+          "safetyRatings": []
+        }],
+        "promptFeedback": { "safetyRatings": [] }
+      };
+      const output_string = JSON.stringify(output_json);
+      writer.write(encoder.encode("data: " + output_string + "\n\n"));
 
     } finally {
 
