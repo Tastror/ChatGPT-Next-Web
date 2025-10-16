@@ -121,7 +121,7 @@ async function request(req: NextRequest, apiKey: string) {
   let intervalRealWrite: any;
   let intervalRealWrite_wrote = false;
   let responseStream: ReadableStream;
-  let writeLength = 0;
+  let nowTime = Date.now();
   const transformStream = new TransformStream();
   const writer = transformStream.writable.getWriter();
   const encoder = new TextEncoder();
@@ -132,14 +132,13 @@ async function request(req: NextRequest, apiKey: string) {
     console.log("[Alive] Sent keep-alive");
   }, 2000);
 
+  // 显示一个 waiting
   intervalRealWrite = setInterval(() => {
     if (!intervalRealWrite_wrote) {
       writer.write(encoder.encode('data: {"candidates":[{"content":{"role":"model","parts":[{"text":"> Waiting."}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n'));
       intervalRealWrite_wrote = true;
-      writeLength += 10;
     } else {
       writer.write(encoder.encode('data: {"candidates":[{"content":{"role":"model","parts":[{"text":"."}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n'));
-      writeLength += 1;
     }
     console.log("[Alive] Sent intervalRealWrite");
   }, 4000);
@@ -172,9 +171,9 @@ async function request(req: NextRequest, apiKey: string) {
           intervalRealWrite = null;
           intervalRealWrite_wrote = false;
           isFirstChunk = false;
+          let writeTime = (Date.now() - nowTime) / 1000;
           console.log("[Alive] First chunk received, clearing keep-alive interval.");
-          let deleteString = "\b".repeat(writeLength);
-          writer.write(encoder.encode(`data: {"candidates":[{"content":{"role":"model","parts":[{"text":"${deleteString}\\n\\n"}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n`));
+          writer.write(encoder.encode(`data: {"candidates":[{"content":{"role":"model","parts":[{"text":" (time cost: ${writeTime}s)\\n\\n"}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n`));
         }
         const { value, done: isDone } = await reader.read();
         done = isDone;
