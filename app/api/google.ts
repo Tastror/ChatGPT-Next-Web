@@ -162,7 +162,7 @@ async function request(req: NextRequest, apiKey: string) {
         const errorEvent_raw = JSON.stringify({ error: true, message: `Upstream Error: ${res.status} ${res.statusText}`, body: errorBody }, null, 2);
         const errorEvent = JSON.stringify(errorEvent_raw);  // escape all data in it
         writer.write(encoder.encode(`data: {"candidates":[{"content":{"role":"model","parts":[{"text":"\\n\\n\`\`\`json\\n${errorEvent}\\n\`\`\`"}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n`));
-        throw new Error(`[Alive] Upstream fetch failed with status ${res.status}`);
+        return;
       }
 
       // @ts-ignore
@@ -208,8 +208,9 @@ async function request(req: NextRequest, apiKey: string) {
 
     } catch (e) {
       console.error("[Alive] Stream fetch error:", e);
-      const errorMessage = `data: ${JSON.stringify({ error: true, message: (e as Error).message })}\n\n`;
-      writer.write(encoder.encode(errorMessage));
+      const errorMessage_raw = JSON.stringify({ error: true, message: (e as Error).message }, null, 2);
+      const errorMessage = JSON.stringify(errorMessage_raw);  // escape all data in it
+      writer.write(encoder.encode(`data: {"candidates":[{"content":{"role":"model","parts":[{"text":"\\n\\n\`\`\`json\\n${errorMessage}\\n\`\`\`"}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n`));
 
     } finally {
 
