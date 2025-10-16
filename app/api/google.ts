@@ -138,7 +138,7 @@ async function request(req: NextRequest, apiKey: string) {
     } else {
       writer.write(encoder.encode('data: {"candidates":[{"content":{"role":"model","parts":[{"text":"."}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n'));
     }
-    console.log("[Alive] Sent keep-alive");
+    console.log("[Alive] Sent intervalRealWrite");
   }, 4000);
 
   // 异步运行“真流”
