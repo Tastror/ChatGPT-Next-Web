@@ -131,16 +131,16 @@ async function request(req: NextRequest, apiKey: string) {
   const writer = transformStream.writable.getWriter();
   const encoder = new TextEncoder();
 
-  const get_comment = (input_string: any) => {
-    return `: ${input_string}\n\n`;
+  const get_comment = (writeString: any) => {
+    return `: ${writeString}\n\n`;
   }
 
-  const get_fake_stream = (input_string: any) => {
-    const output_json = {
+  const get_fake_stream = (writeString: any) => {
+    const streamJSON = {
       "candidates": [{
         "content": {
           "role": "model",
-          "parts": [{ "text": input_string }]
+          "parts": [{ "text": writeString }]
         },
         "finishReason": "ERROR",
         "index": 0,
@@ -148,8 +148,8 @@ async function request(req: NextRequest, apiKey: string) {
       }],
       "promptFeedback": { "safetyRatings": [] }
     };
-    const output_string = JSON.stringify(output_json);
-    return "data: " + output_string + "\n\n";
+    const streamString = JSON.stringify(streamJSON);
+    return "data: " + streamString + "\n\n";
   }
 
   // 启动一个心跳定时器，每 2 秒发送一个无用 SSE 块，以保持及时响应
@@ -186,11 +186,11 @@ async function request(req: NextRequest, apiKey: string) {
           body: errorBody
         };
         const errorMessage = JSON.stringify(errorEventForDisplay, null, 2);
-        const inputString =
+        const writeString =
           `\n\n\`\`\`json\n${errorMessage}\n\`\`\`\n`
-          + `**Response Body:**\n`
+          + `**Error Body:**\n`
           + `\`\`\`html\n${errorBody}\n\`\`\``;  // assume it is html
-        writer.write(encoder.encode(get_fake_stream(inputString)));
+        writer.write(encoder.encode(get_fake_stream(writeString)));
         return;
       }
 
@@ -218,7 +218,7 @@ async function request(req: NextRequest, apiKey: string) {
               intervalRealWrite = null;
             }
             let writeTime = (Date.now() - nowTime) / 1000;
-            let writeString = ` (time cost: ${writeTime}s)\\n\\n`;
+            let writeString = ` (time cost: ${writeTime}s)\n\n`;
             if (!intervalRealWrite_wrote) {
               writeString = `> ${writeString}`;
             }
@@ -238,8 +238,8 @@ async function request(req: NextRequest, apiKey: string) {
     } catch (e) {
       console.error("[Alive] Stream fetch error:", e);
       const errorMessage = JSON.stringify({ error: true, message: (e as Error).message }, null, 2);
-      const inputString = `\n\n\`\`\`json\n${errorMessage}\n\`\`\`\n`;
-      writer.write(encoder.encode(get_fake_stream(inputString)));
+      const writeString = `\n\n\`\`\`json\n${errorMessage}\n\`\`\`\n`;
+      writer.write(encoder.encode(get_fake_stream(writeString)));
 
     } finally {
 
