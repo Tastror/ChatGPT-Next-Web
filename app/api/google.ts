@@ -174,7 +174,7 @@ async function request(req: NextRequest, apiKey: string) {
           isFirstChunk = false;
           console.log("[Alive] First chunk received, clearing keep-alive interval.");
           let deleteString = "\b".repeat(writeLength);
-          writer.write(encoder.encode(`data: {"candidates":[{"content":{"role":"model","parts":[{"text":"${deleteString}\n"}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n`));
+          writer.write(encoder.encode(`data: {"candidates":[{"content":{"role":"model","parts":[{"text":"${deleteString}\\n\\n"}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n`));
         }
         const { value, done: isDone } = await reader.read();
         done = isDone;
