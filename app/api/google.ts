@@ -115,33 +115,42 @@ async function request(req: NextRequest, apiKey: string) {
   };
 
 
-  // --- 添加一个两秒的心跳，防止流式一直不出结果 ---
+  // ------ Changed Here ------
+  // 添加一个 2s 的心跳，防止流式一直不出结果
+
+  const USE_INTERVAL_REAL_WRITE = true;
+  const HEARTBEAT_INTERVAL = 2 * 1000;
 
   let intervalId: any;
   let intervalRealWrite: any;
   let intervalRealWrite_wrote = false;
-  let responseStream: ReadableStream;
   let nowTime = Date.now();
+
+  let responseStream: ReadableStream;
   const transformStream = new TransformStream();
   const writer = transformStream.writable.getWriter();
   const encoder = new TextEncoder();
 
   // 启动一个心跳定时器，每 2 秒发送一个无用 SSE 块，以保持及时响应
-  intervalId = setInterval(() => {
-    writer.write(encoder.encode(': Waiting...\n\n'));
-    console.log("[Alive] Sent keep-alive");
-  }, 2000);
+  if (!USE_INTERVAL_REAL_WRITE) {
+    intervalId = setInterval(() => {
+      writer.write(encoder.encode(': Waiting...\n\n'));
+      console.log("[Alive] SILENCE keep-alive Sent");
+    }, HEARTBEAT_INTERVAL);
+  }
 
-  // 显示一个 waiting
-  intervalRealWrite = setInterval(() => {
-    if (!intervalRealWrite_wrote) {
-      writer.write(encoder.encode('data: {"candidates":[{"content":{"role":"model","parts":[{"text":"> Waiting."}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n'));
-      intervalRealWrite_wrote = true;
-    } else {
-      writer.write(encoder.encode('data: {"candidates":[{"content":{"role":"model","parts":[{"text":"."}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n'));
-    }
-    console.log("[Alive] Sent intervalRealWrite");
-  }, 4000);
+  // 启动一个心跳定时器，每 2 秒发送一个 Waiting... 后面的小点点，以保持及时响应
+  if (USE_INTERVAL_REAL_WRITE) {
+    intervalRealWrite = setInterval(() => {
+      let writeString = '.';
+      if (!intervalRealWrite_wrote) {
+        writeString = "> Waiting.";
+        intervalRealWrite_wrote = true;
+      }
+      writer.write(encoder.encode(`data: {"candidates":[{"content":{"role":"model","parts":[{"text":"${writeString}"}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n`));
+      console.log("[Alive] REAL-WRITE keep-alive Sent");
+    }, HEARTBEAT_INTERVAL);
+  }
 
   // 异步运行“真流”
   (async () => {
@@ -159,21 +168,35 @@ async function request(req: NextRequest, apiKey: string) {
       const reader = res.body.getReader(); 
       const decoder = new TextDecoder();
 
+      // 将“真流”的输入写入我们一开始立即返回的“假流”里
       let done = false;
       let isFirstChunk = true;
-
-      // 将“真流”的输入写入我们一开始立即返回的“假流”里
       while (!done) {
         if (isFirstChunk) {
-          clearInterval(intervalId);
-          clearInterval(intervalRealWrite);
-          intervalId = null;
-          intervalRealWrite = null;
-          intervalRealWrite_wrote = false;
           isFirstChunk = false;
-          let writeTime = (Date.now() - nowTime) / 1000;
+
+          if (!USE_INTERVAL_REAL_WRITE) {
+            if (intervalId) {
+              clearInterval(intervalId);
+              intervalId = null;
+            }
+          }
+
+          if (USE_INTERVAL_REAL_WRITE) {
+            if (intervalRealWrite) {
+              clearInterval(intervalRealWrite);
+              intervalRealWrite = null;
+            }
+            let writeTime = (Date.now() - nowTime) / 1000;
+            let writeString = ` (time cost: ${writeTime}s)\\n\\n`;
+            if (!intervalRealWrite_wrote) {
+              writeString = `> ${writeString}`;
+            }
+            writer.write(encoder.encode(`data: {"candidates":[{"content":{"role":"model","parts":[{"text":"${writeString}"}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n`));
+          }
+
           console.log("[Alive] First chunk received, clearing keep-alive interval.");
-          writer.write(encoder.encode(`data: {"candidates":[{"content":{"role":"model","parts":[{"text":" (time cost: ${writeTime}s)\\n\\n"}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n`));
+
         }
         const { value, done: isDone } = await reader.read();
         done = isDone;
@@ -188,17 +211,25 @@ async function request(req: NextRequest, apiKey: string) {
       writer.write(encoder.encode(errorMessage));
 
     } finally {
+
       clearTimeout(timeoutId);
-      if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
-        console.log("[Alive] Stream ended, clearing interval.");
+
+      if (!USE_INTERVAL_REAL_WRITE) {
+        if (intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+          console.log("[Alive] SILENCE Stream ended, clearing interval.");
+        }
       }
-      if (intervalRealWrite) {
-        clearInterval(intervalRealWrite);
-        intervalRealWrite = null;
-        intervalRealWrite_wrote = false;
+
+      if (USE_INTERVAL_REAL_WRITE) {
+        if (intervalRealWrite) {
+          clearInterval(intervalRealWrite);
+          intervalRealWrite = null;
+          console.log("[Alive] REAL-WRITE Stream ended, clearing interval.");
+        }
       }
+  
       writer.close();
       console.log("[Alive] Stream writer closed.");
     }
