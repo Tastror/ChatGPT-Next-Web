@@ -140,7 +140,7 @@ async function request(req: NextRequest, apiKey: string) {
   }
 
   // 启动一个心跳定时器，每 2 秒发送一个 Waiting... 后面的小点点，以保持及时响应
-  if (USE_INTERVAL_REAL_WRITE) {
+  else {
     intervalRealWrite = setInterval(() => {
       let writeString = '.';
       if (!intervalRealWrite_wrote) {
@@ -182,7 +182,7 @@ async function request(req: NextRequest, apiKey: string) {
             }
           }
 
-          if (USE_INTERVAL_REAL_WRITE) {
+          else {
             if (intervalRealWrite) {
               clearInterval(intervalRealWrite);
               intervalRealWrite = null;
@@ -222,7 +222,7 @@ async function request(req: NextRequest, apiKey: string) {
         }
       }
 
-      if (USE_INTERVAL_REAL_WRITE) {
+      else {
         if (intervalRealWrite) {
           clearInterval(intervalRealWrite);
           intervalRealWrite = null;
