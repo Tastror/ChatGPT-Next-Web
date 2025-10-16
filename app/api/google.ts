@@ -133,10 +133,10 @@ async function request(req: NextRequest, apiKey: string) {
 
   intervalRealWrite = setInterval(() => {
     if (!intervalRealWrite_wrote) {
-      writer.write(encoder.encode('data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Waiting..."}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]},"usageMetadata":{"promptTokenCount":4215,"candidatesTokenCount":0,"totalTokenCount":4215,"thoughtsTokenCount":0,"promptTokensDetails":null}}\n\n'));
+      writer.write(encoder.encode('data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Waiting..."}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n'));
       intervalRealWrite_wrote = true;
     } else {
-      writer.write(encoder.encode('data: {"candidates":[{"content":{"role":"model","parts":[{"text":"."}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]},"usageMetadata":{"promptTokenCount":4215,"candidatesTokenCount":0,"totalTokenCount":4215,"thoughtsTokenCount":0,"promptTokensDetails":null}}\n\n'));
+      writer.write(encoder.encode('data: {"candidates":[{"content":{"role":"model","parts":[{"text":"."}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]}}\n\n'));
     }
     console.log("[Alive] Sent keep-alive");
   }, 4000);
