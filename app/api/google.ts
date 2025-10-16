@@ -118,6 +118,8 @@ async function request(req: NextRequest, apiKey: string) {
   // --- 添加一个两秒的心跳，防止流式一直不出结果 ---
 
   let intervalId: any;
+  let intervalRealWrite: any;
+  let intervalRealWrite_wrote = false;
   let responseStream: ReadableStream;
   const transformStream = new TransformStream();
   const writer = transformStream.writable.getWriter();
@@ -128,6 +130,16 @@ async function request(req: NextRequest, apiKey: string) {
     writer.write(encoder.encode(': Waiting...\n\n'));
     console.log("[Alive] Sent keep-alive");
   }, 2000);
+
+  intervalRealWrite = setInterval(() => {
+    if (!intervalRealWrite_wrote) {
+      writer.write(encoder.encode('data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Waiting..."}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]},"usageMetadata":{"promptTokenCount":4215,"candidatesTokenCount":0,"totalTokenCount":4215,"thoughtsTokenCount":0,"promptTokensDetails":null}}\n\n'));
+      intervalRealWrite_wrote = true;
+    } else {
+      writer.write(encoder.encode('data: {"candidates":[{"content":{"role":"model","parts":[{"text":"."}]},"finishReason":null,"index":0,"safetyRatings":[]}],"promptFeedback":{"safetyRatings":[]},"usageMetadata":{"promptTokenCount":4215,"candidatesTokenCount":0,"totalTokenCount":4215,"thoughtsTokenCount":0,"promptTokensDetails":null}}\n\n'));
+    }
+    console.log("[Alive] Sent keep-alive");
+  }, 4000);
 
   // 异步运行“真流”
   (async () => {
@@ -157,7 +169,10 @@ async function request(req: NextRequest, apiKey: string) {
         }
         if (isFirstChunk) {
           clearInterval(intervalId);
+          clearInterval(intervalRealWrite);
           intervalId = null;
+          intervalRealWrite = null;
+          intervalRealWrite_wrote = false;
           isFirstChunk = false;
           console.log("[Alive] First chunk received, clearing keep-alive interval.");
         }
@@ -174,6 +189,11 @@ async function request(req: NextRequest, apiKey: string) {
         clearInterval(intervalId);
         intervalId = null;
         console.log("[Alive] Stream ended, clearing interval.");
+      }
+      if (intervalRealWrite) {
+        clearInterval(intervalRealWrite);
+        intervalRealWrite = null;
+        intervalRealWrite_wrote = false;
       }
       writer.close();
       console.log("[Alive] Stream writer closed.");
